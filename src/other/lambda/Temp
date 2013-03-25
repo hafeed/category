@@ -1,0 +1,131 @@
+package lambda
+
+import scala.language.higherKinds
+
+sealed trait Lambda {
+  
+  type substitute[Name <: Variable, Value <: Lambda] <: Lambda
+  
+  type apply[U <: Lambda] <: Lambda
+  
+  type evaluate <: Lambda
+
+}
+
+trait Application[Function <: Lambda, Argument <: Lambda] extends Lambda {
+  
+  type substitute[Name <: Variable, Value <: Lambda] = Application[Function#substitute[Name, Value], Argument#substitute[Name, Value]]
+  
+  type apply[U <: Lambda] = Application[Application[Function, Argument], U]
+  
+  type evaluate = Function#evaluate#apply[Argument]
+  
+}
+
+trait Abstraction[Argument <: Variable, Body <: Lambda] extends Lambda {
+
+  /*
+   * ! XXX If the Name is equal to the Argument, the Body should not be substituted, 
+   * because of the clash of the variable names happens at this point.
+   */
+  type substitute[Name <: Variable, Value <: Lambda] = Abstraction[Argument, Body#substitute[Name, Value]]
+  
+  type apply[U <: Lambda] = Body#substitute[Argument, U]#evaluate
+  
+  type evaluate = Abstraction[Argument, Body#evaluate] // Might be worth removing #evaluate
+  
+}
+
+sealed trait Variable extends Lambda {
+ 
+  type Match[IsBaseVariable <: T, IsNotBaseVariable[SomeVariable <: Variable] <: T, T] <:T
+
+  type Compare[Value <: Variable] <: Boolean
+  
+  //type substitute[Name <: Variable, Value <: Lambda] = Compare[Name]#If[Value, this.type, Lambda]
+  
+  //type apply[U <: Lambda] = Application[this.type, U]
+  
+  //type evaluate = this.type//XXX
+  
+}
+
+trait BaseVariable extends Variable {
+  
+  type Match[IsBaseVariable <: T, IsNotBaseVariable[SomeVariable <: Variable] <: T, T] = IsBaseVariable
+  
+  type Compare[Value <: Variable] = Value#Match[True, ItIsNotBaseVariable, Boolean]
+  
+  type ItIsNotBaseVariable[Value] = False
+  
+  type substitute[Name <: Variable, Value <: Lambda] = Compare[Name]#If[Value, BaseVariable, Lambda]
+ 
+  type apply[U <: Lambda] = Application[BaseVariable, U]
+  
+  type evaluate = BaseVariable
+  
+  //type substitute[Name <: Variable, Value <: Lambda] = Compare[Name]#If[Value, this.type, Lambda]
+  
+  //type apply[U <: Lambda] = Application[this.type, U]
+  
+  //type evaluate = this.type//XXX
+  
+}
+
+trait NotBaseVariable[SomeVariable <: Variable] extends Variable {
+  
+  type Match[IsBaseVariable <: T, IsNotBaseVariable[SomeOtherVariable <: Variable] <: T, T] = IsNotBaseVariable[SomeVariable]
+  
+  type Compare[Value <: Variable] = Value#Match[False, SomeVariable#Compare, Boolean]
+  
+  type substitute[Name <: Variable, Value <: Lambda] = Compare[Name]#If[Value, NotBaseVariable[SomeVariable], Lambda]
+  
+  type apply[U <: Lambda] = Application[NotBaseVariable[SomeVariable], U]
+  
+  type evaluate = NotBaseVariable[SomeVariable]
+  
+  //type substitute[Name <: Variable, Value <: Lambda] = Compare[Name]#If[Value, this.type, Lambda]
+  
+  //type apply[U <: Lambda] = Application[this.type, U]
+  
+  //type evaluate = this.type//XXX
+  
+}
+
+sealed trait Boolean {
+  
+  type If[T <: Up, F <: Up, Up] <: Up
+  
+}
+
+trait False extends Boolean {
+  
+  type If[T <: Up, F <: Up, Up] = F
+  
+}
+
+trait True extends Boolean {
+  
+  type If[T <: Up, F <: Up, Up] = T
+
+}
+
+trait Equal[T1 >: T2 <: T2, T2] {}
+
+/*
+trait Comparison {
+  
+  type Match[LessThan <: T, Equal <: T, GreaterThan <: T, T] <: T
+  
+  type Equal = Match[False, True, False, Boolean]
+  
+  type NotEqual = Match[True, False, True, Boolean]
+  
+  type GreaterThanOrEqual = Match[False, True, True, Boolean]
+  
+  type LessThanOrEqual = Match[True, False, False, Boolean]
+  
+}
+ 
+
+*/
